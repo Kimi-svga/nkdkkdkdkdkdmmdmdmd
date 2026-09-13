@@ -35,7 +35,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "8710105438"))
 ADMIN_USERNAME = "@shonex_01"
 DB_PATH = os.getenv("DB_PATH", "shonex.db")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://i-n-d-y-leader.onrender.com")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "shonex_webhook_secret_2026")
 
 GAME_NICK = "Shay_Vance"
