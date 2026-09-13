@@ -35,10 +35,15 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "8710105438"))
 ADMIN_USERNAME = "@shonex_01"
 DB_PATH = os.getenv("DB_PATH", "shonex.db")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "shonex_webhook_secret_2026")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://i-n-d-y-leader.onrender.com")
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "webhook123")
 
-GAME_NICK = "Shay_Vance"
+# ============================================
+# РЕКВИЗИТЫ ДЛЯ ОПЛАТЫ (не меняются)
+# ============================================
+
+PAYMENT_SERVER = "NORILSK"
+PAYMENT_NICK = "Shay_Vance"
 DONATE_URL = "https://blackrussia.online/donate.php"
 RATE_RUB_PER_1KK = Decimal("35")
 
@@ -207,7 +212,7 @@ def admin_order_kb(order_id: int):
 
 
 # ============================================
-# СТАРТ — ПРИВЕТСТВИЕ + КНОПКИ
+# СТАРТ
 # ============================================
 
 @dp.message(CommandStart())
@@ -244,14 +249,17 @@ async def admin_panel(message: Message):
 
 
 # ============================================
-# CALLBACK: ИНФО
+# РЕКВИЗИТЫ (всегда NORILSK + Shay_Vance)
 # ============================================
 
 @dp.callback_query(F.data == "details")
 async def details(call: CallbackQuery):
     await call.message.answer(
-        "💳 <b>Реквизиты для оплаты</b>\n\n"
-        "Оплата через официальный сайт доната или Stars.\n"
+        "💳 <b>РЕКВИЗИТЫ ДЛЯ ОПЛАТЫ</b>\n\n"
+        f"🎮 Сервер: <b>{PAYMENT_SERVER}</b>\n"
+        f"👤 Ник: <b>{PAYMENT_NICK}</b>\n\n"
+        "⚠️ <b>Обязательно проверь данные перед оплатой!</b>\n\n"
+        "Оплата через официальный сайт доната.\n"
         "После оплаты отправь чек в бота.",
         reply_markup=payment_kb()
     )
@@ -296,7 +304,7 @@ async def buy(call: CallbackQuery, state: FSMContext):
     await state.set_state(OrderFlow.server)
     await call.message.answer(
         "🎮 <b>Шаг 1/3 — выбери сервер</b>\n\n"
-        "Напиши название сервера (можно в любом регистре, буквы A-Z):\n"
+        "Напиши название сервера, где хочешь получить вирты (буквы A-Z):\n"
         "<i>Например: NORILSK, Moscow, ASTANA</i>"
     )
     await call.answer()
@@ -318,7 +326,7 @@ async def server_input(message: Message, state: FSMContext):
     await state.set_state(OrderFlow.amount)
 
     await message.answer(
-        f"✅ Сервер: <b>{raw}</b>\n\n"
+        f"✅ Сервер получения: <b>{raw}</b>\n\n"
         f"🎮 <b>Шаг 2/3 — введи количество виртов</b>\n\n"
         f"Напиши сумму в миллионах (кк).\n"
         f"<i>Например: 100 — это 100кк</i>"
@@ -346,7 +354,7 @@ async def amount_input(message: Message, state: FSMContext):
 
     data = await state.get_data()
     await message.answer(
-        f"✅ Сервер: <b>{data['server']}</b>\n"
+        f"✅ Сервер получения: <b>{data['server']}</b>\n"
         f"✅ Количество: <b>{amount:g}кк</b>\n"
         f"💳 К оплате: <b>{total:g} ₽</b>\n\n"
         f"🎮 <b>Шаг 3/3 — выбери способ передачи</b>",
@@ -355,7 +363,7 @@ async def amount_input(message: Message, state: FSMContext):
 
 
 # ============================================
-# ШАГ 3: СПОСОБ ПЕРЕДАЧИ
+# ШАГ 3: СПОСОБ ПЕРЕДАЧИ + РЕКВИЗИТЫ
 # ============================================
 
 @dp.callback_query(OrderFlow.method, F.data.startswith("method_"))
@@ -370,14 +378,17 @@ async def method_input(call: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     await state.update_data(method=selected)
 
-    # ← НИК СВЕТИТСЯ ТОЛЬКО ЗДЕСЬ, ПРИ ОПЛАТЕ
     await call.message.answer(
         "📦 <b>Заказ сформирован</b>\n\n"
-        f"🎮 Сервер: <b>{data['server']}</b>\n"
-        f"👤 Ник: <b>{GAME_NICK}</b>\n"
+        f"🎮 Сервер получения: <b>{data['server']}</b>\n"
         f"💰 Объём: <b>{data['amount']:g}кк</b>\n"
         f"💳 Сумма: <b>{data['total']:g} ₽</b>\n"
-        f"🔄 Способ: <b>{selected}</b>\n\n"
+        f"🔄 Способ передачи: <b>{selected}</b>\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "💳 <b>РЕКВИЗИТЫ ДЛЯ ОПЛАТЫ</b>\n\n"
+        f"🎮 Сервер: <b>{PAYMENT_SERVER}</b>\n"
+        f"👤 Ник: <b>{PAYMENT_NICK}</b>\n\n"
+        "⚠️ <b>Обязательно проверь данные перед оплатой!</b>\n\n"
         "Оплати через Stars или официальный сайт, затем отправь чек.",
         reply_markup=payment_kb()
     )
@@ -416,7 +427,7 @@ async def pay_stars(call: CallbackQuery, state: FSMContext):
     await bot.send_invoice(
         chat_id=call.from_user.id,
         title=f"Вирты Black Russia ({amount:g}кк)",
-        description=f"Сервер {server}, ник {GAME_NICK}",
+        description=f"Сервер получения: {server}. Оплата на {PAYMENT_SERVER} ({PAYMENT_NICK})",
         payload=f"order_{call.from_user.id}_{server}_{amount}",
         provider_token="",
         currency="XTR",
@@ -454,8 +465,7 @@ async def payment_received(message: Message, state: FSMContext):
         f"👤 Клиент: {message.from_user.full_name}\n"
         f"🆔 ID: <code>{message.from_user.id}</code>\n"
         f"📱 Username: @{message.from_user.username or 'нет'}\n\n"
-        f"🎮 Сервер: <b>{server}</b>\n"
-        f"👤 Ник: <b>{GAME_NICK}</b>\n"
+        f"🎮 Сервер получения: <b>{server}</b>\n"
         f"💰 Объём: <b>{amount:g}кк</b>\n"
         f"💳 Сумма: <b>{total:g} ₽</b>\n"
         f"🔄 Способ: <b>{method}</b>\n"
@@ -514,8 +524,7 @@ async def receipt_photo(message: Message, state: FSMContext):
         f"👤 Клиент: {message.from_user.full_name}\n"
         f"🆔 ID: <code>{message.from_user.id}</code>\n"
         f"📱 Username: @{message.from_user.username or 'нет'}\n\n"
-        f"🎮 Сервер: <b>{server}</b>\n"
-        f"👤 Ник: <b>{GAME_NICK}</b>\n"
+        f"🎮 Сервер получения: <b>{server}</b>\n"
         f"💰 Объём: <b>{amount:g}кк</b>\n"
         f"💳 Сумма: <b>{total:g} ₽</b>\n"
         f"🔄 Способ: <b>{method}</b>"
@@ -574,7 +583,7 @@ async def approve(call: CallbackQuery):
         await bot.send_message(
             order[1],
             f"✅ <b>Заявка #{order_id} одобрена!</b>\n\n"
-            f"🎮 Сервер: <b>{order[4]}</b>\n"
+            f"🎮 Сервер получения: <b>{order[4]}</b>\n"
             f"💰 Объём: <b>{order[5]:g}кк</b>\n"
             f"💳 Сумма: <b>{order[6]:g} ₽</b>\n"
             f"🔄 Способ: <b>{order[7]}</b>\n\n"
