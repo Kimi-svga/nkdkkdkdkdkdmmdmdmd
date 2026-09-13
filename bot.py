@@ -35,13 +35,34 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "8710105438"))
 ADMIN_USERNAME = "@shonex_01"
 DB_PATH = os.getenv("DB_PATH", "shonex.db")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://i-n-d-y-leader.onrender.com")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "shonex_webhook_secret_2026")
 
-SERVER = "Norilsk"
 GAME_NICK = "Shay_Vance"
 DONATE_URL = "https://blackrussia.online/donate.php"
 RATE_RUB_PER_1KK = Decimal("35")
+
+# ============================================
+# СПИСОК СЕРВЕРОВ (91 сервер)
+# ============================================
+
+SERVERS = [
+    "RED", "GREEN", "BLUE", "YELLOW", "ORANGE", "PURPLE", "LIME", "PINK",
+    "CHERRY", "BLACK", "INDIGO", "WHITE", "MAGENTA", "CRIMSON", "GOLD",
+    "AZURE", "PLATINUM", "AQUA", "GRAY", "ICE", "CHILLI", "CHOCO",
+    "MOSCOW", "SPB", "UFA", "SOCHI", "KAZAN", "SAMARA", "ROSTOV",
+    "ANAPA", "EKB", "KRASNODAR", "ARZAMAS", "NOVOSIB", "GROZNY",
+    "SARATOV", "OMSK", "IRKUTSK", "VOLGOGRAD", "VORONEZH", "BELGOROD",
+    "MAKHACHKALA", "VLADIKAVKAZ", "VLADIVOSTOK", "KALININGRAD",
+    "CHELYABINSK", "KRASNOYARSK", "CHEBOKSARY", "KHABAROVSK", "PERM",
+    "TULA", "RYAZAN", "MURMANSK", "PENZA", "KURSK", "ARKHANGELSK",
+    "ORENBURG", "KIROV", "KEMEROVO", "TYUMEN", "TOLYATTI", "IVANOVO",
+    "STAVROPOL", "SMOLENSK", "PSKOV", "BRYANSK", "OREL", "YAROSLAVL",
+    "BARNAUL", "LIPETSK", "ULYANOVSK", "YAKUTSK", "TAMBOV", "BRATSK",
+    "ASTRAKHAN", "CHITA", "KOSTROMA", "VLADIMIR", "KALUGA", "NOVGOROD",
+    "TAGANROG", "VOLOGDA", "TVER", "TOMSK", "IZHEVSK", "SURGUT",
+    "PODOLSK", "MAGADAN", "CHEREPOVETS", "NORILSK", "ASTANA",
+]
 
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN не задан в переменных окружения")
@@ -76,6 +97,7 @@ class DB:
                     user_id INTEGER,
                     username TEXT,
                     full_name TEXT,
+                    server TEXT,
                     amount REAL,
                     total REAL,
                     method TEXT,
@@ -88,13 +110,13 @@ class DB:
             await conn.execute('PRAGMA journal_mode=WAL')
             await conn.commit()
 
-    async def create_order(self, user_id, username, full_name, amount, total, method, receipt_file_id) -> int:
+    async def create_order(self, user_id, username, full_name, server, amount, total, method, receipt_file_id) -> int:
         now = datetime.now().isoformat()
         async with aiosqlite.connect(self.path) as conn:
             cur = await conn.execute('''
-                INSERT INTO orders (user_id, username, full_name, amount, total, method, receipt_file_id, status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
-            ''', (user_id, username, full_name, float(amount), float(total), method, receipt_file_id, now, now))
+                INSERT INTO orders (user_id, username, full_name, server, amount, total, method, receipt_file_id, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+            ''', (user_id, username, full_name, server, float(amount), float(total), method, receipt_file_id, now, now))
             await conn.commit()
             return cur.lastrowid
 
@@ -114,14 +136,14 @@ class DB:
     async def get_pending(self):
         async with aiosqlite.connect(self.path) as conn:
             cur = await conn.execute(
-                "SELECT id, user_id, username, full_name, amount, total, method, created_at FROM orders WHERE status = 'pending' ORDER BY created_at DESC"
+                "SELECT id, user_id, username, full_name, server, amount, total, method, created_at FROM orders WHERE status = 'pending' ORDER BY created_at DESC"
             )
             return await cur.fetchall()
 
     async def get_user_orders(self, user_id: int):
         async with aiosqlite.connect(self.path) as conn:
             cur = await conn.execute(
-                'SELECT id, amount, total, status, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 10',
+                'SELECT id, server, amount, total, status, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 10',
                 (user_id,)
             )
             return await cur.fetchall()
@@ -135,6 +157,7 @@ db = DB()
 # ============================================
 
 class OrderFlow(StatesGroup):
+    server = State()
     amount = State()
     method = State()
     receipt = State()
@@ -184,17 +207,16 @@ def admin_order_kb(order_id: int):
 
 
 # ============================================
-# КОМАНДЫ
+# СТАРТ — ПРИВЕТСТВИЕ + КНОПКИ
 # ============================================
 
 @dp.message(CommandStart())
-async def start(message: Message):
+async def start(message: Message, state: FSMContext):
+    await state.clear()
     text = (
         "🏪 <b>Shonex Black Market</b>\n\n"
-        "Добро пожаловать! Здесь вы можете оформить сделку быстро и удобно. ⚡️\n\n"
-        f"🎮 Сервер: <b>{SERVER}</b>\n"
-        f"👤 Игровой аккаунт: <b>{GAME_NICK}</b>\n\n"
-        "Выберите нужный раздел:"
+        "Добро пожаловать! Здесь ты можешь оформить сделку быстро и удобно. ⚡️\n\n"
+        "Выбери нужный раздел:"
     )
     await message.answer(text, reply_markup=main_kb())
 
@@ -215,7 +237,7 @@ async def admin_panel(message: Message):
     text = f"📋 <b>Ожидающие заказы ({len(pending)})</b>\n\n"
     for o in pending[:10]:
         text += (
-            f"#{o[0]} | {o[4]:g}кк | {o[5]:g}₽ | {o[6]}\n"
+            f"#{o[0]} | {o[4]} | {o[5]:g}кк | {o[6]:g}₽ | {o[7]}\n"
             f"  от {o[3]} (@{o[2] or 'anon'})\n\n"
         )
     await message.answer(text, parse_mode=ParseMode.HTML)
@@ -229,10 +251,8 @@ async def admin_panel(message: Message):
 async def details(call: CallbackQuery):
     await call.message.answer(
         "💳 <b>Реквизиты для оплаты</b>\n\n"
-        f"🎮 Сервер: <b>{SERVER}</b>\n"
-        f"👤 Никнейм: <b>{GAME_NICK}</b>\n\n"
         "Оплата через официальный сайт доната или Stars.\n"
-        "После оплаты отправьте чек в бота.",
+        "После оплаты отправь чек в бота.",
         reply_markup=payment_kb()
     )
     await call.answer()
@@ -242,8 +262,7 @@ async def details(call: CallbackQuery):
 async def rate(call: CallbackQuery):
     await call.message.answer(
         f"📊 <b>Текущий курс</b>\n\n"
-        f"💰 1kk = <b>{RATE_RUB_PER_1KK} ₽</b>\n"
-        f"🎮 Сервер: <b>{SERVER}</b>"
+        f"💰 1kk = <b>{RATE_RUB_PER_1KK} ₽</b>"
     )
     await call.answer()
 
@@ -252,7 +271,7 @@ async def rate(call: CallbackQuery):
 async def my_orders(call: CallbackQuery):
     orders = await db.get_user_orders(call.from_user.id)
     if not orders:
-        await call.message.answer("📦 У вас пока нет заказов.")
+        await call.message.answer("📦 У тебя пока нет заказов.")
         await call.answer()
         return
     statuses = {
@@ -260,27 +279,55 @@ async def my_orders(call: CallbackQuery):
         'approved': '✅ Одобрен',
         'rejected': '❌ Отклонён',
     }
-    text = "📦 <b>Ваши последние заказы</b>\n\n"
+    text = "📦 <b>Твои последние заказы</b>\n\n"
     for o in orders:
-        text += f"#{o[0]} | {o[1]:g}кк | {o[2]:g}₽ | {statuses.get(o[3], o[3])}\n"
+        text += f"#{o[0]} | {o[1]} | {o[2]:g}кк | {o[3]:g}₽ | {statuses.get(o[4], o[4])}\n"
     await call.message.answer(text)
     await call.answer()
 
 
 # ============================================
-# ОФОРМЛЕНИЕ ЗАКАЗА
+# КУПИТЬ ВИРТЫ — ВВОД СЕРВЕРА
 # ============================================
 
 @dp.callback_query(F.data == "buy")
 async def buy(call: CallbackQuery, state: FSMContext):
-    await state.set_state(OrderFlow.amount)
+    await state.clear()
+    await state.set_state(OrderFlow.server)
     await call.message.answer(
-        "💰 <b>Оформление заказа</b>\n\n"
-        "Введите количество виртов в миллионах.\n"
-        "Например: <code>100</code> для 100кк."
+        "🎮 <b>Шаг 1/3 — выбери сервер</b>\n\n"
+        "Напиши название сервера (можно в любом регистре, буквы A-Z):\n"
+        "<i>Например: NORILSK, Moscow, ASTANA</i>"
     )
     await call.answer()
 
+
+@dp.message(OrderFlow.server)
+async def server_input(message: Message, state: FSMContext):
+    raw = message.text.strip().upper()
+
+    if raw not in SERVERS:
+        await message.answer(
+            "❌ Такого сервера нет в списке.\n\n"
+            "Проверь название и попробуй снова.\n"
+            "<i>Например: NORILSK, MOSCOW, ASTANA</i>"
+        )
+        return
+
+    await state.update_data(server=raw)
+    await state.set_state(OrderFlow.amount)
+
+    await message.answer(
+        f"✅ Сервер: <b>{raw}</b>\n\n"
+        f"🎮 <b>Шаг 2/3 — введи количество виртов</b>\n\n"
+        f"Напиши сумму в миллионах (кк).\n"
+        f"<i>Например: 100 — это 100кк</i>"
+    )
+
+
+# ============================================
+# ШАГ 2: СУММА
+# ============================================
 
 @dp.message(OrderFlow.amount)
 async def amount_input(message: Message, state: FSMContext):
@@ -290,19 +337,26 @@ async def amount_input(message: Message, state: FSMContext):
         if amount <= 0:
             raise ValueError
     except (InvalidOperation, ValueError):
-        await message.answer("❌ Введите корректное число, например: <code>100</code>.")
+        await message.answer("❌ Введи корректное число, например: <code>100</code>.")
         return
 
     total = amount * RATE_RUB_PER_1KK
     await state.update_data(amount=amount, total=total)
     await state.set_state(OrderFlow.method)
+
+    data = await state.get_data()
     await message.answer(
+        f"✅ Сервер: <b>{data['server']}</b>\n"
         f"✅ Количество: <b>{amount:g}кк</b>\n"
         f"💳 К оплате: <b>{total:g} ₽</b>\n\n"
-        "Выберите способ передачи:",
+        f"🎮 <b>Шаг 3/3 — выбери способ передачи</b>",
         reply_markup=methods_kb()
     )
 
+
+# ============================================
+# ШАГ 3: СПОСОБ ПЕРЕДАЧИ
+# ============================================
 
 @dp.callback_query(OrderFlow.method, F.data.startswith("method_"))
 async def method_input(call: CallbackQuery, state: FSMContext):
@@ -316,24 +370,29 @@ async def method_input(call: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     await state.update_data(method=selected)
 
+    # ← НИК СВЕТИТСЯ ТОЛЬКО ЗДЕСЬ, ПРИ ОПЛАТЕ
     await call.message.answer(
         "📦 <b>Заказ сформирован</b>\n\n"
-        f"🎮 Сервер: <b>{SERVER}</b>\n"
+        f"🎮 Сервер: <b>{data['server']}</b>\n"
         f"👤 Ник: <b>{GAME_NICK}</b>\n"
         f"💰 Объём: <b>{data['amount']:g}кк</b>\n"
         f"💳 Сумма: <b>{data['total']:g} ₽</b>\n"
         f"🔄 Способ: <b>{selected}</b>\n\n"
-        "Оплатите через Stars или официальный сайт, затем отправьте чек.",
+        "Оплати через Stars или официальный сайт, затем отправь чек.",
         reply_markup=payment_kb()
     )
     await state.set_state(OrderFlow.receipt)
     await call.answer()
 
 
+# ============================================
+# ОТПРАВКА ЧЕКА
+# ============================================
+
 @dp.callback_query(F.data == "send_receipt")
 async def send_receipt(call: CallbackQuery, state: FSMContext):
     await state.set_state(OrderFlow.receipt)
-    await call.message.answer("📸 Отправьте скриншот или фото чека об оплате.")
+    await call.message.answer("📸 Отправь скриншот или фото чека об оплате.")
     await call.answer()
 
 
@@ -344,23 +403,22 @@ async def send_receipt(call: CallbackQuery, state: FSMContext):
 @dp.callback_query(F.data == "pay_stars")
 async def pay_stars(call: CallbackQuery, state: FSMContext):
     data = await state.get_data()
+    server = data.get('server')
     amount = data.get('amount')
     total = data.get('total')
 
-    if not amount or not total:
-        await call.answer("Сначала оформите заказ", show_alert=True)
+    if not amount or not total or not server:
+        await call.answer("Сначала оформи заказ", show_alert=True)
         return
 
-    # Конвертация рублей в Stars (примерный курс: 1 Star ≈ 2₽)
-    # Точный курс нужно уточнять, здесь для примера
     stars_amount = int(total / 2)
 
     await bot.send_invoice(
         chat_id=call.from_user.id,
         title=f"Вирты Black Russia ({amount:g}кк)",
-        description=f"Сервер {SERVER}, ник {GAME_NICK}",
-        payload=f"order_{call.from_user.id}_{amount}",
-        provider_token="",  # ← для Stars пустая строка
+        description=f"Сервер {server}, ник {GAME_NICK}",
+        payload=f"order_{call.from_user.id}_{server}_{amount}",
+        provider_token="",
         currency="XTR",
         prices=[LabeledPrice(label="Вирты", amount=stars_amount)]
     )
@@ -369,14 +427,13 @@ async def pay_stars(call: CallbackQuery, state: FSMContext):
 
 @dp.pre_checkout_query()
 async def pre_checkout(query: PreCheckoutQuery):
-    # Проверяем, что заказ существует и не оплачен
     await query.answer(ok=True)
 
 
 @dp.message(F.successful_payment)
 async def payment_received(message: Message, state: FSMContext):
-    payload = message.successful_payment.invoice_payload
     data = await state.get_data()
+    server = data.get('server', 'Не указан')
     amount = data.get('amount', Decimal(0))
     total = data.get('total', Decimal(0))
     method = data.get('method', 'Не указан')
@@ -385,6 +442,7 @@ async def payment_received(message: Message, state: FSMContext):
         user_id=message.from_user.id,
         username=message.from_user.username,
         full_name=message.from_user.full_name,
+        server=server,
         amount=amount,
         total=total,
         method=f"{method} (Stars)",
@@ -396,6 +454,8 @@ async def payment_received(message: Message, state: FSMContext):
         f"👤 Клиент: {message.from_user.full_name}\n"
         f"🆔 ID: <code>{message.from_user.id}</code>\n"
         f"📱 Username: @{message.from_user.username or 'нет'}\n\n"
+        f"🎮 Сервер: <b>{server}</b>\n"
+        f"👤 Ник: <b>{GAME_NICK}</b>\n"
         f"💰 Объём: <b>{amount:g}кк</b>\n"
         f"💳 Сумма: <b>{total:g} ₽</b>\n"
         f"🔄 Способ: <b>{method}</b>\n"
@@ -413,7 +473,7 @@ async def payment_received(message: Message, state: FSMContext):
 
     await message.answer(
         f"✅ <b>Заявка #{order_id} принята!</b>\n\n"
-        "Оплата Stars получена. Менеджер проверит и свяжется с вами.\n"
+        "Оплата Stars получена. Менеджер проверит и свяжется с тобой.\n"
         "Статус: «📦 Мои заказы».",
         reply_markup=main_kb()
     )
@@ -427,12 +487,13 @@ async def payment_received(message: Message, state: FSMContext):
 @dp.message(OrderFlow.receipt, F.photo)
 async def receipt_photo(message: Message, state: FSMContext):
     data = await state.get_data()
+    server = data.get('server')
     amount = data.get('amount')
     total = data.get('total')
     method = data.get('method', 'Не указан')
 
-    if not amount or not total:
-        await message.answer("❌ Ошибка: данные заказа потеряны. Начните заново /start")
+    if not amount or not total or not server:
+        await message.answer("❌ Ошибка: данные заказа потеряны. Начни заново /start")
         await state.clear()
         return
 
@@ -441,6 +502,7 @@ async def receipt_photo(message: Message, state: FSMContext):
         user_id=message.from_user.id,
         username=message.from_user.username,
         full_name=message.from_user.full_name,
+        server=server,
         amount=amount,
         total=total,
         method=method,
@@ -452,7 +514,7 @@ async def receipt_photo(message: Message, state: FSMContext):
         f"👤 Клиент: {message.from_user.full_name}\n"
         f"🆔 ID: <code>{message.from_user.id}</code>\n"
         f"📱 Username: @{message.from_user.username or 'нет'}\n\n"
-        f"🎮 Сервер: <b>{SERVER}</b>\n"
+        f"🎮 Сервер: <b>{server}</b>\n"
         f"👤 Ник: <b>{GAME_NICK}</b>\n"
         f"💰 Объём: <b>{amount:g}кк</b>\n"
         f"💳 Сумма: <b>{total:g} ₽</b>\n"
@@ -471,7 +533,7 @@ async def receipt_photo(message: Message, state: FSMContext):
 
     await message.answer(
         f"✅ <b>Заявка #{order_id} принята!</b>\n\n"
-        "Менеджер проверит чек и свяжется с вами.\n"
+        "Менеджер проверит чек и свяжется с тобой.\n"
         "Статус можно посмотреть в разделе «📦 Мои заказы».",
         reply_markup=main_kb()
     )
@@ -480,7 +542,7 @@ async def receipt_photo(message: Message, state: FSMContext):
 
 @dp.message(OrderFlow.receipt)
 async def receipt_not_photo(message: Message):
-    await message.answer("📸 Пожалуйста, отправьте именно фото/скриншот чека.")
+    await message.answer("📸 Пожалуйста, отправь именно фото/скриншот чека.")
 
 
 @dp.callback_query(F.data == "cancel")
@@ -512,10 +574,11 @@ async def approve(call: CallbackQuery):
         await bot.send_message(
             order[1],
             f"✅ <b>Заявка #{order_id} одобрена!</b>\n\n"
-            f"💰 Объём: <b>{order[4]:g}кк</b>\n"
-            f"💳 Сумма: <b>{order[5]:g} ₽</b>\n"
-            f"🔄 Способ: <b>{order[6]}</b>\n\n"
-            f"Менеджер свяжется с вами для передачи виртов.\n"
+            f"🎮 Сервер: <b>{order[4]}</b>\n"
+            f"💰 Объём: <b>{order[5]:g}кк</b>\n"
+            f"💳 Сумма: <b>{order[6]:g} ₽</b>\n"
+            f"🔄 Способ: <b>{order[7]}</b>\n\n"
+            f"Менеджер свяжется с тобой для передачи виртов.\n"
             f"Спасибо за сделку! ⚡️",
             reply_markup=main_kb()
         )
@@ -553,7 +616,7 @@ async def reject(call: CallbackQuery):
         await bot.send_message(
             order[1],
             f"❌ <b>Заявка #{order_id} отклонена.</b>\n\n"
-            f"Если вы уверены, что оплата была — свяжитесь с менеджером: {ADMIN_USERNAME}",
+            f"Если ты уверен, что оплата была — свяжись с менеджером: {ADMIN_USERNAME}",
             reply_markup=main_kb()
         )
     except Exception as e:
