@@ -34,7 +34,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()]
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://shonex-market.onrender.com")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL") 
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "shonex_market_secret")
 SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
 
