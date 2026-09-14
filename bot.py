@@ -9,6 +9,7 @@ SHONEX ULTRA v3.2 — Production Ready (OOP + Full Interface)
 import asyncio
 import logging
 import os
+import re
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from typing import Optional, Dict, Any, List
