@@ -10,6 +10,7 @@ Escrow: Stars на балансе бота. Курс: 1 Star = 1.5 ₽. Коми
 import asyncio
 import logging
 import os
+import re
 import asyncpg
 from contextlib import asynccontextmanager
 from datetime import datetime
